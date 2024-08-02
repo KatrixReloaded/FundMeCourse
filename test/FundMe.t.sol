@@ -15,6 +15,7 @@ contract FundMeTest is Test {
     function setUp() external {
         DeployFundMe dfundMe = new DeployFundMe();
         fundMe = dfundMe.run();
+        vm.deal(tester, STARTING_BALANCE);
     }
 
     function testMinimumDollarIsFive() public view {
@@ -36,10 +37,25 @@ contract FundMeTest is Test {
     }
 
     function testFundUpdatesFundedDataStructure() public {
-        vm.deal(tester, STARTING_BALANCE);
         vm.prank(tester);
         fundMe.fund{value: SEND_VALUE}();
         uint256 amountFunded = fundMe.getAddressToAmountFunded(tester);
         assertEq(amountFunded, SEND_VALUE);
+    }
+
+    function testAddsFunderToArrayOfFunders() public {
+        vm.prank(tester);
+        fundMe.fund{value: SEND_VALUE}();
+        address funder = fundMe.getFunder(0);
+        assertEq(funder, tester);
+    }
+
+    function testOnlyOwnerCanWithdraw() public {
+        vm.prank(tester);
+        fundMe.fund{value: SEND_VALUE}();
+
+        vm.expectRevert();
+        vm.prank(tester);
+        fundMe.withdraw();
     }
 }
