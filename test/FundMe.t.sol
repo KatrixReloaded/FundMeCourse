@@ -23,7 +23,7 @@ contract FundMeTest is Test {
     }
 
     function testOwnerIsMsgSender() public view {
-        assertEq(fundMe.i_owner(), msg.sender);
+        assertEq(fundMe.getOwner(), msg.sender);
     }
 
     function testPriceFeedVersionIsAccurate() public view {
@@ -50,12 +50,53 @@ contract FundMeTest is Test {
         assertEq(funder, tester);
     }
 
-    function testOnlyOwnerCanWithdraw() public {
+    modifier funded() { 
+        /* set up modifiers to reduce the complexity of your unit 
+        tests by using repetitive precondition LoC.
+        If we had to set up multiple tests where we needed multiple 
+        fund calls, we could use such a modifier and make all the calls here */
         vm.prank(tester);
         fundMe.fund{value: SEND_VALUE}();
+        _;
+    }
 
+    function testOnlyOwnerCanWithdraw() public funded {
         vm.expectRevert();
         vm.prank(tester);
         fundMe.withdraw();
+    }
+
+    function testWithdrawWithASingleFunder() public funded {
+        // PRECONDITIONS
+        uint256 startingOwnerBalance = fundMe.getOwner().balance;
+        uint256 startingFundMeBalance = address(fundMe).balance;
+
+        // ACTIONS
+        vm.prank(fundMe.getOwner());
+        fundMe.withdraw();
+
+        // POSTCONDITIONS
+        uint256 endingOwnerBalance = fundMe.getOwner().balance;
+        uint256 endingFundMeBalance = address(fundMe).balance;
+        assertEq(endingFundMeBalance, 0);
+        assertEq(startingOwnerBalance + startingFundMeBalance, endingOwnerBalance);
+    }
+
+    function testWithdrawWithMultipleFunders() public funded {
+        uint160 numberOfFunders = 10;
+        uint160 startingFunderIndex = 1; // not 0 as zero address might revert in most cases
+        for(uint160 i = startingFunderIndex; i < numberOfFunders; i++) {
+            hoax(address(i), STARTING_BALANCE);
+            fundMe.fund{value: SEND_VALUE}();
+        }
+
+        uint256 startingOwnerBalance = fundMe.getOwner().balance;
+        uint256 startingFundMeBalance = address(fundMe).balance;
+
+        vm.prank(fundMe.getOwner());
+        fundMe.withdraw();
+
+        assert(fundMe.getOwner().balance == startingOwnerBalance+startingFundMeBalance);
+        assert(address(fundMe).balance == 0);
     }
 }
